@@ -1,4 +1,7 @@
-#DISCLAIMER: TEMPLATE CODE IS FROM MAGNUS ERIK HAVASS PEDERSEN
+#DISCLAIMER: 
+#The code is built upon Magnus Erik Hvass Pedersen's template code on convultional neural networks
+#Template code modified to work with SVHN datasets
+#Created by: Ryan Tran and Thomas Bryant
 
 import numpy as np
 import scipy as sp
@@ -8,106 +11,140 @@ import tensorflow as tf
 train_dir = "train_32x32.mat"
 test_dir = "test_32x32.mat"
 
-#Training and test data are 4D. First dim holds encases the images.
+#Training and test data are 4D. First dim encases the images.
 #Second dim encases the rgb containers. $Third dim encases the rgb values
 #Fourth dim is the rgb value.
 
 img_size = 32    #Image is a 32x32
 num_channels = 3 #Image has 3 channels: red, green, blue.
-num_classes = 10 #10 digits
+num_classes = 10 #10 different kinds of single digits
 
+filter_size1 = 5
+num_filters1 = 16
+
+filter_size2 = 5
+num_filters2 = 32
+
+filter_size3 = 5
+num_filters3 = 48
+
+filter_size4 = 5
+num_filters4 = 64
+
+batch = 64
+steps = 5000
 ################################################
 #############---HELPER FUNCTIONS---#############
 ################################################
-
-def create_weight(shape):
+def create_weights(shape):
     #create a weight with random values
     return tf.Variable(tf.truncated_normal(shape, stddev=0.05))
 
 def create_biases(length):
     return tf.Variable(tf.constant(0.05, shape=[length]))
 
+#conv layers are always 4 dims
+#EX: [num_images, img_height, img_width, num_channels]
 def create_conv_layer(input,                #The previous layer
-                      num_input_channels,   #Num. of channesl in prev layer
+                      num_input_channels,   #Num. of filters in prev layer
                       filter_size,          #W and H of each filter
                       num_filters,          #Num. of filters
-                      use_pooling=True):    #2x2 max-pooling
+                      max_pooling=True):    #Use max-pooling?
     
-    # Shape of the filter-weights for the convolution.
-    # This format is determined by the TensorFlow API.
     shape = [filter_size, filter_size, num_input_channels, num_filters]
-
-    # Create new weights aka. filters with the given shape.
-    weights = new_weights(shape=shape)
-
-    # Create new biases, one for each filter.
-    biases = new_biases(length=num_filters)
-
-    # Create the TensorFlow operation for convolution.
-    # Note the strides are set to 1 in all dimensions.
-    # The first and last stride must always be 1,
-    # because the first is for the image-number and
-    # the last is for the input-channel.
-    # But e.g. strides=[1, 2, 2, 1] would mean that the filter
-    # is moved 2 pixels across the x- and y-axis of the image.
-    # The padding is set to 'SAME' which means the input image
-    # is padded with zeroes so the size of the output is the same.
+    weights = create_weights(shape=shape)
+    biases = create_biases(length=num_filters)
     layer = tf.nn.conv2d(input=input,
                          filter=weights,
                          strides=[1, 1, 1, 1],
                          padding='SAME')
-
-    # Add the biases to the results of the convolution.
-    # A bias-value is added to each filter-channel.
     layer += biases
-
-    # Use pooling to down-sample the image resolution?
-    if use_pooling:
-        # This is 2x2 max-pooling, which means that we
-        # consider 2x2 windows and select the largest value
-        # in each window. Then we move 2 pixels to the next window.
+    if max_pooling:
         layer = tf.nn.max_pool(value=layer,
                                ksize=[1, 2, 2, 1],
                                strides=[1, 2, 2, 1],
                                padding='SAME')
-
-    # Rectified Linear Unit (ReLU).
-    # It calculates max(x, 0) for each input pixel x.
-    # This adds some non-linearity to the formula and allows us
-    # to learn more complicated functions.
     layer = tf.nn.relu(layer)
-
-    # Note that ReLU is normally executed before the pooling,
-    # but since relu(max_pool(x)) == max_pool(relu(x)) we can
-    # save 75% of the relu-operations by max-pooling first.
-
-    # We return both the resulting layer and the filter-weights
-    # because we will plot the weights later.
     return layer, weights
-    
+
+#Conv layer is 4 dims. Reduce to 2 so fully connected
+#layer can take layer as input.
+#Reduce layer to [num_images,num_features]
+def two_dim_reduction(layer):
+    layer_shape = layer.get_shape()
+    num_features = layer_shape[1:4].num_elements()
+    #[-1,..] tells the prog to find what the first dim is 
+    new_layer = tf.reshape(layer,[-1,num_features])
+    return new_layer, num_features
+
+def create_fc_layer(input,          #The previous layer
+                    num_inputs,     #Num of inputs in prev layer
+                    num_outputs,    #Num of outputs in prev layer
+                    relu=True):     #Use relu?
+    weights = create_weights(shape=[num_inputs, num_outputs])
+    biases = create_biases(length=num_outputs)
+    layer = tf.matmul(input, weights) + biases
+    if relu:
+        layer = tf.nn.relu(layer)
+    return layer
+
+#Create the network
+def cnn(data):
+    conv1, weights_conv1 = create_conv_layer(data,
+                                             num_channels,
+                                             filter_size1,
+                                             num_filters1)
+    conv2, weights_conv2 = create_conv_layer(conv1,
+                                             num_filters1,
+                                             filter_size2,
+                                             num_filters2)
+    conv3, weights_conv3 = create_conv_layer(conv2,
+                                             num_filters2,
+                                             filter_size3,
+                                             num_filters3)
+    conv4, weights_conv4 = create_conv_layer(conv3,
+                                             num_filters3,
+                                             filter_size4,
+                                             num_filters4)
+    layer5, num_feat = two_dim_reduction(conv4)
+    layer6 = tf.nn.dropout(layer5,0.90)
+    layer7 = create_fc_layer(layer5,num_feat,128)
+    return layer7
+
+#Optimize
+def test():
+    X_train,y_train = load_training()
+    with tf.Session as sess:
+        sess.run(tf.global_variables_initializer())
+        
 #------------LOAD DATA FUNCTIONS------------#
 def load_training():
     
     train_data = spo.loadmat(train_dir)
-    Xtemp = np.array(train_data['X'])
-    y_train = np.array(train_data['y'])
+    Xtemp = np.asarray(train_data['X'])
+    y_train = np.asarray(train_data['y'])
+                    
     X_train = []
     
     for i in range(Xtemp.shape[3]):
         X_train.append(Xtemp[:,:,:,i])
-    X_train = np.array(X_train)
+    X_train = np.asarray(X_train)
+    X_train = X_train.astype(np.float32)
     
     return X_train,y_train
 
 def load_test():
     
     test_data = spo.loadmat(test_dir)
-    Xtemp = np.array(test_data['X'])
-    y_test = np.array(test_data['y'])
+    Xtemp = np.asarray(test_data['X'])
+    y_test = np.asarray(test_data['y'])
     X_test = []
     
     for i in range(Xtemp.shape[3]):
         X_test.append(Xtemp[:,:,:,i])
-    X_test = np.array(X_test)
+    X_test = np.asarray(X_test)
     
     return X_test,y_test
+
+#------------------------------------------#
+test()
