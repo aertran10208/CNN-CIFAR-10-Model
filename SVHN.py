@@ -31,8 +31,12 @@ num_filters3 = 48
 filter_size4 = 5
 num_filters4 = 64
 
-batch = 64
+batch_size = 64
 steps = 5000
+
+X = tf.placeholder(tf.float32, shape=[None,img_size,img_size,num_channels])
+y = tf.placeholder(tf.float32, shape=[None,num_classes])
+
 ################################################
 #############---HELPER FUNCTIONS---#############
 ################################################
@@ -106,17 +110,16 @@ def cnn(data):
                                              num_filters3,
                                              filter_size4,
                                              num_filters4)
-    layer5, num_feat = two_dim_reduction(conv4)
-    layer6 = tf.nn.dropout(layer5,0.90)
-    layer7 = create_fc_layer(layer5,num_feat,128)
-    return layer7
+    redu_layer, num_feat = two_dim_reduction(conv4)
+    drop_layer = tf.nn.dropout(redu_layer,0.90)
+    fc1 = create_fc_layer(droput,
+                          num_feat,
+                          128)
+    fc2 = create_fc_layer(fc1,
+                          num_feat,
+                          num_classes)
+    return fc2
 
-#Optimize
-def test():
-    X_train,y_train = load_training()
-    with tf.Session as sess:
-        sess.run(tf.global_variables_initializer())
-        
 #------------LOAD DATA FUNCTIONS------------#
 def load_training():
     
@@ -147,4 +150,13 @@ def load_test():
     return X_test,y_test
 
 #------------------------------------------#
-test()
+X_train,y_train = load_training()
+num_instances = X_train.shape[0]
+cross_entropy = tf.nn.softmax_cross_entropy_with_logits(X,y)
+with tf.Session() as sess:
+    sess.run(tf.global_variables_initializer())
+        for step in steps:
+            #ensure that our batch circles around our data set
+            start = step*batch % num_instances
+            batch = X_train[start:(start+end);;;]
+            model = cnn(batch)
