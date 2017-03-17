@@ -7,8 +7,10 @@ import numpy as np
 import scipy as sp
 import scipy.io as spo
 import tensorflow as tf
+import matplotlib.pyplot as plt
+import matplotlib.image as mpimg
 
-train_dir = "train_32x32.mat"
+train_dir = "data_batch_1.mat"
 test_dir = "test_32x32.mat"
 
 #Training and test data are 4D. First dim encases the images.
@@ -31,9 +33,9 @@ num_filters3 = 48
 filter_size4 = 5
 num_filters4 = 64
 
-batch_size = 64
-steps = 5000
-
+batch_size = 100
+steps = 1000
+learn_rate = 0.001
 X = tf.placeholder(tf.float32, shape=[None,img_size,img_size,num_channels])
 y = tf.placeholder(tf.float32, shape=[None,num_classes])
 
@@ -112,11 +114,11 @@ def cnn(data):
                                              num_filters4)
     redu_layer, num_feat = two_dim_reduction(conv4)
     drop_layer = tf.nn.dropout(redu_layer,0.90)
-    fc1 = create_fc_layer(droput,
+    fc1 = create_fc_layer(drop_layer,
                           num_feat,
                           128)
     fc2 = create_fc_layer(fc1,
-                          num_feat,
+                          128,
                           num_classes)
     return fc2
 
@@ -124,39 +126,66 @@ def cnn(data):
 def load_training():
     
     train_data = spo.loadmat(train_dir)
-    Xtemp = np.asarray(train_data['X'])
-    y_train = np.asarray(train_data['y'])
-                    
+    Xtemp = np.asarray(train_data['data'])
+    num_image = Xtemp.shape[0]
+    y_train = np.asarray(train_data['labels'])
     X_train = []
-    
-    for i in range(Xtemp.shape[3]):
-        X_train.append(Xtemp[:,:,:,i])
-    X_train = np.asarray(X_train)
+    for i in range(10000):
+        chunk_size = int(Xtemp.shape[1]/3)
+        r = Xtemp[i][0:chunk_size]
+        g = Xtemp[i][chunk_size:2*chunk_size]
+        b = Xtemp[i][2*chunk_size:3*chunk_size]
+        rgb = np.vstack((r,g,b)).reshape((-1),order="F")
+        Xtemp[i] = np.asarray(rgb)
+    X_train = np.reshape(Xtemp, (num_image,
+                                 img_size,
+                                 img_size,
+                                 num_channels))
     X_train = X_train.astype(np.float32)
-    
+    y_train = y_train.astype(np.float32)
     return X_train,y_train
 
 def load_test():
     
-    test_data = spo.loadmat(test_dir)
-    Xtemp = np.asarray(test_data['X'])
-    y_test = np.asarray(test_data['y'])
+    test_data = spo.loadmat(train_dir)
+    Xtemp = np.asarray(test_data['data'])
+    num_image = Xtemp.shape[0]
+    y_test = np.asarray(test_data['labels'])                    
     X_test = []
-    
-    for i in range(Xtemp.shape[3]):
-        X_test.append(Xtemp[:,:,:,i])
-    X_test = np.asarray(X_test)
-    
+    for i in range(10000):
+        chunk_size = int(Xtemp.shape[1]/3)
+        r = Xtemp[i][0:chunk_size]
+        g = Xtemp[i][chunk_size:2*chunk_size]
+        b = Xtemp[i][2*chunk_size:3*chunk_size]
+        rgb = np.vstack((r,g,b)).reshape((-1),order="F")
+        Xtemp[i] = np.asarray(rgb)
+    X_test = np.reshape(Xtemp, (num_image,
+                                img_size,
+                                img_size,
+                                num_channels))
+    X_test = X_test.astype(np.float32)
+    y_test = y_test.astype(np.float32)
     return X_test,y_test
 
 #------------------------------------------#
 X_train,y_train = load_training()
+X_test,y_test = load_test()
 num_instances = X_train.shape[0]
-cross_entropy = tf.nn.softmax_cross_entropy_with_logits(X,y)
+model = cnn(X)
+loss = tf.reduce_mean(tf.nn.softmax_cross_entropy_with_logits(logits=model,
+                                                              labels=y))
+optimizer = tf.train.AdamOptimizer(learn_rate).minimize(loss)
+y_pred = tf.nn.softmax(model)
 with tf.Session() as sess:
     sess.run(tf.global_variables_initializer())
-        for step in steps:
-            #ensure that our batch circles around our data set
-            start = step*batch % num_instances
-            batch = X_train[start:(start+end);;;]
-            model = cnn(batch)
+    for step in range(steps):
+        #ensure that our batch circles around our data set
+        start = step*batch_size % num_instances
+        training_batch = X_train[start:(start+batch_size),:,:,:]
+        label_batch = y_train[start:(start+batch_size)]
+        feed_dict = {X: training_batch,
+                     y: label_batch}
+        prediction = sess.run([optimizer, loss], feed_dict=feed_dict)
+        if step%100 == 0:
+            print(step)
+    print("done")
