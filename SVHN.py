@@ -100,16 +100,16 @@ filter_size1 = 5
 num_filters1 = 32
 
 filter_size2 = 5
-num_filters2 = 64
+num_filters2 = 32
 
 filter_size3 = 5
-num_filters3 = 128
+num_filters3 = 64
 
 filter_size4 = 5
-num_filters4 = 256
+num_filters4 = 128
 
-batch_size = 100
-steps = 5000
+batch_size = 50
+steps = 10000
 learn_rate = 0.001
 
 X = tf.placeholder(tf.float32, shape=[None,img_size,img_size,num_channels])
@@ -135,7 +135,7 @@ conv_weight4 = tf.Variable(tf.truncated_normal(shape=conv_shape4, stddev=0.05))
 conv_bias4   = tf.Variable(tf.constant(value=0.05, shape=[num_filters4]))
 
 #Initialize weights and biases for fully connected layers
-fc_weight1 = tf.Variable(tf.truncated_normal(shape=[1024, 128], stddev=0.05))
+fc_weight1 = tf.Variable(tf.truncated_normal(shape=[num_filters4*4, 128], stddev=0.05))
 fc_bias1   = tf.Variable(tf.constant(value=0.05, shape=[128]))
 
 fc_weight2 = tf.Variable(tf.truncated_normal(shape=[128,num_classes], stddev=0.05))
