@@ -1,6 +1,3 @@
-#DISCLAIMER: 
-#The code is built upon Magnus Erik Hvass Pedersen's template code on convultional neural networks
-#Template code modified to work with SVHN datasets
 #Created by: Ryan Tran and Thomas Bryant
 
 import numpy as np
@@ -13,116 +10,10 @@ import matplotlib.image as mpimg
 train_dir = "data_batch_1.mat"
 test_dir = "test_32x32.mat"
 
-#Training and test data are 4D. First dim encases the images.
-#Second dim encases the rgb containers. $Third dim encases the rgb values
-#Fourth dim is the rgb value.
+########################################################################################
+#--------------------------------Load_Data_Functions-----------------------------------#
+########################################################################################
 
-img_size = 32    #Image is a 32x32
-num_channels = 3 #Image has 3 channels: red, green, blue.
-num_classes = 10 #10 different kinds of single digits
-
-filter_size1 = 5
-num_filters1 = 16
-
-filter_size2 = 5
-num_filters2 = 32
-
-filter_size3 = 5
-num_filters3 = 48
-
-filter_size4 = 5
-num_filters4 = 64
-
-batch_size = 100
-steps = 1000
-learn_rate = 0.001
-X = tf.placeholder(tf.float32, shape=[None,img_size,img_size,num_channels])
-y = tf.placeholder(tf.float32, shape=[None,num_classes])
-
-################################################
-#############---HELPER FUNCTIONS---#############
-################################################
-def create_weights(shape):
-    #create a weight with random values
-    return tf.Variable(tf.truncated_normal(shape, stddev=0.05))
-
-def create_biases(length):
-    return tf.Variable(tf.constant(0.05, shape=[length]))
-
-#conv layers are always 4 dims
-#EX: [num_images, img_height, img_width, num_channels]
-def create_conv_layer(input,                #The previous layer
-                      num_input_channels,   #Num. of filters in prev layer
-                      filter_size,          #W and H of each filter
-                      num_filters,          #Num. of filters
-                      max_pooling=True):    #Use max-pooling?
-    
-    shape = [filter_size, filter_size, num_input_channels, num_filters]
-    weights = create_weights(shape=shape)
-    biases = create_biases(length=num_filters)
-    layer = tf.nn.conv2d(input=input,
-                         filter=weights,
-                         strides=[1, 1, 1, 1],
-                         padding='SAME')
-    layer += biases
-    if max_pooling:
-        layer = tf.nn.max_pool(value=layer,
-                               ksize=[1, 2, 2, 1],
-                               strides=[1, 2, 2, 1],
-                               padding='SAME')
-    layer = tf.nn.relu(layer)
-    return layer, weights
-
-#Conv layer is 4 dims. Reduce to 2 so fully connected
-#layer can take layer as input.
-#Reduce layer to [num_images,num_features]
-def two_dim_reduction(layer):
-    layer_shape = layer.get_shape()
-    num_features = layer_shape[1:4].num_elements()
-    #[-1,..] tells the prog to find what the first dim is 
-    new_layer = tf.reshape(layer,[-1,num_features])
-    return new_layer, num_features
-
-def create_fc_layer(input,          #The previous layer
-                    num_inputs,     #Num of inputs in prev layer
-                    num_outputs,    #Num of outputs in prev layer
-                    relu=True):     #Use relu?
-    weights = create_weights(shape=[num_inputs, num_outputs])
-    biases = create_biases(length=num_outputs)
-    layer = tf.matmul(input, weights) + biases
-    if relu:
-        layer = tf.nn.relu(layer)
-    return layer
-
-#Create the network
-def cnn(data):
-    conv1, weights_conv1 = create_conv_layer(data,
-                                             num_channels,
-                                             filter_size1,
-                                             num_filters1)
-    conv2, weights_conv2 = create_conv_layer(conv1,
-                                             num_filters1,
-                                             filter_size2,
-                                             num_filters2)
-    conv3, weights_conv3 = create_conv_layer(conv2,
-                                             num_filters2,
-                                             filter_size3,
-                                             num_filters3)
-    conv4, weights_conv4 = create_conv_layer(conv3,
-                                             num_filters3,
-                                             filter_size4,
-                                             num_filters4)
-    redu_layer, num_feat = two_dim_reduction(conv4)
-    drop_layer = tf.nn.dropout(redu_layer,0.90)
-    fc1 = create_fc_layer(drop_layer,
-                          num_feat,
-                          128)
-    fc2 = create_fc_layer(fc1,
-                          128,
-                          num_classes)
-    return fc2
-
-#------------LOAD DATA FUNCTIONS------------#
 def load_training():
     
     train_data = spo.loadmat(train_dir)
@@ -167,6 +58,132 @@ def load_test():
     y_test = y_test.astype(np.float32)
     return X_test,y_test
 
+########################################################################################
+#--------------------------------Hyper Parameters--------------------------------------#
+########################################################################################
+
+img_size = 32    #Image is a 32x32
+num_channels = 3 #Image has 3 channels: red, green, blue.
+num_classes = 10 #10 different kinds of single digits
+
+filter_size1 = 5
+num_filters1 = 16
+
+filter_size2 = 5
+num_filters2 = 32
+
+filter_size3 = 5
+num_filters3 = 48
+
+filter_size4 = 5
+num_filters4 = 64
+
+batch_size = 100
+steps = 1000
+learn_rate = 0.001
+
+X = tf.placeholder(tf.float32, shape=[None,img_size,img_size,num_channels])
+y = tf.placeholder(tf.float32, shape=[None,num_classes])
+
+#Shape of each convoltional layer
+conv_shape1 = [filter_size1, filter_size1, num_channels, num_filters1]
+conv_shape2 = [filter_size2, filter_size2, num_filters1, num_filters2]
+conv_shape3 = [filter_size3, filter_size3, num_filters2, num_filters3]
+conv_shape4 = [filter_size4, filter_size4, num_filters3, num_filters4]
+
+#Initialize weights and biases for convoltional layers
+conv_weight1 = tf.Variable(tf.truncated_normal(shape=conv_shape1, stddev=0.05))
+conv_bias1   = tf.Variable(tf.constant(value=0.05, shape=[num_filters1]))
+
+conv_weight2 = tf.Variable(tf.truncated_normal(shape=conv_shape2, stddev=0.05))
+conv_bias2   = tf.Variable(tf.constant(value=0.05, shape=[num_filters2]))
+
+conv_weight3 = tf.Variable(tf.truncated_normal(shape=conv_shape3, stddev=0.05))
+conv_bias3   = tf.Variable(tf.constant(value=0.05, shape=[num_filters3]))
+
+conv_weight4 = tf.Variable(tf.truncated_normal(shape=conv_shape4, stddev=0.05))
+conv_bias4   = tf.Variable(tf.constant(value=0.05, shape=[num_filters4]))
+
+#Initialize weights and biases for fully connected layers
+fc_weight1 = tf.Variable(tf.truncated_normal(shape=[256, 128], stddev=0.05))
+fc_bias1   = tf.Variable(tf.constant(value=0.05, shape=[128]))
+
+fc_weight2 = tf.Variable(tf.truncated_normal(shape=[128,num_classes], stddev=0.05))
+fc_bias2   = tf.Variable(tf.constant(value=0.05, shape=[num_classes]))
+
+########################################################################################
+#--------------------------------------------------------------------------------------#
+########################################################################################
+
+def cnn(data):
+    #Create convolutional layer 1
+    conv1 = tf.nn.conv2d(input=data,
+                         filter=conv_weight1,
+                         strides=[1, 1, 1, 1],
+                         padding='SAME')
+    conv1 += conv_bias1
+    conv1 = tf.nn.max_pool(value=conv1,
+                           ksize=[1, 2, 2, 1],
+                           strides=[1, 2, 2, 1],
+                           padding='SAME')
+    conv1 = tf.nn.relu(conv1)
+
+    #Create convolutional layer 2
+    conv2 = tf.nn.conv2d(input=conv1,
+                         filter=conv_weight2,
+                         strides=[1, 1, 1, 1],
+                         padding='SAME')
+    conv2 += conv_bias2
+    conv2 = tf.nn.max_pool(value=conv2,
+                           ksize=[1, 2, 2, 1],
+                           strides=[1, 2, 2, 1],
+                           padding='SAME')
+    conv2 = tf.nn.relu(conv2)
+
+    #Create convolutional layer 3
+    conv3 = tf.nn.conv2d(input=conv2,
+                         filter=conv_weight3,
+                         strides=[1, 1, 1, 1],
+                         padding='SAME')
+    conv3 += conv_bias3
+    conv3 = tf.nn.max_pool(value=conv3,
+                           ksize=[1, 2, 2, 1],
+                           strides=[1, 2, 2, 1],
+                           padding='SAME')
+    conv3 = tf.nn.relu(conv3)
+
+    #Create convolutional layer 4
+    conv4 = tf.nn.conv2d(input=conv3,
+                         filter=conv_weight4,
+                         strides=[1, 1, 1, 1],
+                         padding='SAME')
+    conv4 += conv_bias4
+    conv4 = tf.nn.max_pool(value=conv4,
+                           ksize=[1, 2, 2, 1],
+                           strides=[1, 2, 2, 1],
+                           padding='SAME')
+    conv4 = tf.nn.relu(conv4)
+
+    #Reduce 4dim to 2dim
+    prev_lay_shape = conv4.get_shape()
+    prev_num_feat = prev_lay_shape[1:4].num_elements()
+    print(prev_num_feat)
+    flatten_layer = tf.reshape(conv4,[-1,prev_num_feat])
+
+    #Dropout layer
+    drop_layer = tf.nn.dropout(flatten_layer,0.90)
+
+    print("first")
+    #First fully connected layer
+    fc1 = tf.matmul(drop_layer, fc_weight1) + fc_bias1
+    fc1 = tf.nn.relu(fc1)
+
+    print("second")
+    #Second fully conected layer
+    fc2 = tf.matmul(fc1, fc_weight2) + fc_bias2
+    fc2 = tf.nn.relu(fc2)
+    return fc2
+
 #------------------------------------------#
 X_train,y_train = load_training()
 X_test,y_test = load_test()
@@ -178,14 +195,16 @@ optimizer = tf.train.AdamOptimizer(learn_rate).minimize(loss)
 y_pred = tf.nn.softmax(model)
 with tf.Session() as sess:
     sess.run(tf.global_variables_initializer())
+    print(tf.__version__)
     for step in range(steps):
         #ensure that our batch circles around our data set
         start = step*batch_size % num_instances
         training_batch = X_train[start:(start+batch_size),:,:,:]
         label_batch = y_train[start:(start+batch_size)]
-        feed_dict = {X: training_batch,
-                     y: label_batch}
-        prediction = sess.run([optimizer, loss], feed_dict=feed_dict)
+        sess.run(cnn(training_batch))
+##        feed_dict = {X: training_batch,
+##                     y: label_batch}
+##        prediction = sess.run([optimizer, loss], feed_dict=feed_dict)
         if step%100 == 0:
             print(step)
     print("done")
