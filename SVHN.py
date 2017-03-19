@@ -124,11 +124,13 @@ filter_size4 = 5
 num_filters4 = 128
 
 batch_size = 100
-steps = 20000
+steps = 60000
 learn_rate = 0.001
+keep_prob = 0.9
 
 X = tf.placeholder(tf.float32, shape=[None,img_size,img_size,num_channels])
 y = tf.placeholder(tf.float32, shape=[None,num_classes])
+p = tf.placeholder(tf.float32)
 
 #Shape of each convoltional layer
 conv_shape1 = [filter_size1, filter_size1, num_channels, num_filters1]
@@ -215,7 +217,7 @@ def cnn(data):
     flatten_layer = tf.reshape(conv4,[-1,prev_num_feat])
 
     #Dropout layer
-    drop_layer = tf.nn.dropout(flatten_layer,0.90)
+    drop_layer = tf.nn.dropout(flatten_layer,p)
 
     #First fully connected layer
     fc1 = tf.matmul(drop_layer, fc_weight1) + fc_bias1
@@ -255,14 +257,17 @@ y_pred = tf.nn.softmax(model)
 with tf.Session() as sess:
     sess.run(tf.global_variables_initializer())
     num_accu = []
-    output_file = open("Output.txt","w")
+    output1_file = open("Output1.txt","w")
+    output2_file = open("Output2.txt","w")
+    output3_file = open("Output3.txt","w")
     for step in range(steps):
         #ensure that our batch circles around our data set
         start = step*batch_size % num_instances
         training_batch = X_train[start:(start+batch_size),:,:,:]
         label_batch = y_train[start:(start+batch_size)]
         feed_dict = {X: training_batch,
-                     y: label_batch}
+                     y: label_batch,
+                     p: .5}
         bla1, bla2, prediction = sess.run([optimizer, loss, y_pred], feed_dict=feed_dict)
         accu = accuracy(prediction, label_batch)
         num_accu.append(accu)
@@ -270,7 +275,21 @@ with tf.Session() as sess:
             total_accu = sum(num_accu)/100
             print("Step ",step," Accuracy on training data: ",total_accu)
             data = " ".join([str(step),str(total_accu),"\n"])
-            output_file.write(data)
+            output1_file.write(data)
+            num_accu = []
+            for step2 in range(100):
+                start = step2*batch_size % num_instances
+                testing_batch = X_test[start:(start+batch_size),:,:,:]
+                label_batch = y_test[start:(start+batch_size)]
+                feed_dict = {X: testing_batch,
+                             p: 1}
+                prediction = sess.run(y_pred, feed_dict=feed_dict)
+                accu = accuracy(prediction, label_batch)
+                num_accu.append(accu)
+            total_accu = sum(num_accu)/100
+            print("Accuracy on test data: ",total_accu)
+            data = " ".join([str(step),str(total_accu),"\n"])
+            output2_file.write(data)
             num_accu = []
     num_accu = []
     conf_matrix = np.zeros((10,10),dtype=np.int32)
@@ -286,5 +305,9 @@ with tf.Session() as sess:
     total_accu = sum(num_accu)/100
     print("Accuracy on test data: ",total_accu)
     print(conf_matrix)
+    output3_file.write(str(conf_matrix))
     print("done")
-    output_file.close()
+    output1_file.close()
+    output2_file.close()
+    output3_file.close()
+
