@@ -13,7 +13,7 @@ train_dir2 = "data_batch_2.mat"
 train_dir3 = "data_batch_3.mat"
 train_dir4 = "data_batch_4.mat"
 train_dir5 = "data_batch_5.mat"
-test_dir = "test_32x32.mat"
+test_dir = "test_batch.mat"
 
 ########################################################################################
 #--------------------------------Load_Data_Functions-----------------------------------#
@@ -71,8 +71,9 @@ def load_test():
     test_data = spo.loadmat(test_dir)
     Xtemp = np.asarray(test_data['data'])
     num_image = Xtemp.shape[0]
-    y_test = np.asarray(test_data['labels'])                    
+    ytemp = np.asarray(test_data['labels'])                    
     X_test = []
+    y_test = []
     for i in range(10000):
         chunk_size = int(Xtemp.shape[1]/3)
         r = Xtemp[i][0:chunk_size]
@@ -85,7 +86,21 @@ def load_test():
                                 img_size,
                                 num_channels))
     X_test = X_test.astype(np.float32)
-    y_test = y_test.astype(np.float32)
+    for num in ytemp:
+        label = np.zeros(10)
+        if num == 0 : label[0] = 1
+        elif num == 1 : label[1] = 1
+        elif num == 2 : label[2] = 1
+        elif num == 3 : label[3] = 1
+        elif num == 4 : label[4] = 1
+        elif num == 5 : label[5] = 1
+        elif num == 6 : label[6] = 1
+        elif num == 7 : label[7] = 1
+        elif num == 8 : label[8] = 1
+        elif num == 9 : label[9] = 1
+        y_test.append(label)
+    y_test = np.asarray(y_test)
+    y_test = y_test.astype(np.int32)
     return X_test,y_test
 
 ########################################################################################
@@ -108,8 +123,8 @@ num_filters3 = 64
 filter_size4 = 5
 num_filters4 = 128
 
-batch_size = 50
-steps = 10000
+batch_size = 100
+steps = 20000
 learn_rate = 0.001
 
 X = tf.placeholder(tf.float32, shape=[None,img_size,img_size,num_channels])
@@ -217,10 +232,20 @@ def accuracy(predictions, labels):
     return (100.0 * np.sum(np.argmax(predictions, 1) == np.argmax(labels, 1))
           / predictions.shape[0])
 #----------------------------------------------------------------------------------#
+def confusion_matrix(predictions,labels,conf_matrix):
+    num_test = predictions.shape[0]
+    true_label = np.argmax(labels,1)
+    pred_label = np.argmax(predictions,1)
+    for i in range(num_test):
+        j = true_label[i]
+        k  = pred_label[i]
+        conf_matrix[j][k] += 1
+    return conf_matrix
 
+print("Loading data...please wait")
 X_train,y_train = load()
-print(y_train)
-#X_test,y_test = load_test()
+X_test,y_test = load_test()
+print("Done loading data. Optimization starting.")
 num_instances = X_train.shape[0]
 model = cnn(X)
 loss = tf.reduce_mean(tf.nn.softmax_cross_entropy_with_logits(logits=model,
@@ -229,7 +254,8 @@ optimizer = tf.train.AdamOptimizer(learn_rate).minimize(loss)
 y_pred = tf.nn.softmax(model)
 with tf.Session() as sess:
     sess.run(tf.global_variables_initializer())
-    #start_time = timeit.timieit()
+    num_accu = []
+    output_file = open("Output.txt","w")
     for step in range(steps):
         #ensure that our batch circles around our data set
         start = step*batch_size % num_instances
@@ -237,11 +263,28 @@ with tf.Session() as sess:
         label_batch = y_train[start:(start+batch_size)]
         feed_dict = {X: training_batch,
                      y: label_batch}
-        bla, bla2, prediction = sess.run([optimizer, loss, y_pred], feed_dict=feed_dict)
+        bla1, bla2, prediction = sess.run([optimizer, loss, y_pred], feed_dict=feed_dict)
         accu = accuracy(prediction, label_batch)
-        print(accu)
+        num_accu.append(accu)
         if step%100 == 0:
-            print(step)
-    #end_time = timeit.timieit()
-    #print(end_time - start_time)
+            total_accu = sum(num_accu)/100
+            print("Step ",step," Accuracy on training data: ",total_accu)
+            data = " ".join([str(step),str(total_accu),"\n"])
+            output_file.write(data)
+            num_accu = []
+    num_accu = []
+    conf_matrix = np.zeros((10,10),dtype=np.int32)
+    for step in range(100):
+        start = step*batch_size % num_instances
+        testing_batch = X_test[start:(start+batch_size),:,:,:]
+        label_batch = y_test[start:(start+batch_size)]
+        feed_dict = {X: testing_batch}
+        prediction = sess.run(y_pred, feed_dict=feed_dict)
+        accu = accuracy(prediction, label_batch)
+        num_accu.append(accu)
+        confusion_matrix(prediction,label_batch,conf_matrix)
+    total_accu = sum(num_accu)/100
+    print("Accuracy on test data: ",total_accu)
+    print(conf_matrix)
     print("done")
+    output_file.close()
