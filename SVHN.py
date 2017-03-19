@@ -2,7 +2,6 @@ import numpy as np
 import scipy as sp
 import scipy.io as spo
 import tensorflow as tf
-#import timeit
 
 train_dir1 = "data_batch_1.mat"
 train_dir2 = "data_batch_2.mat"
