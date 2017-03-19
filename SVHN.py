@@ -2,8 +2,6 @@ import numpy as np
 import scipy as sp
 import scipy.io as spo
 import tensorflow as tf
-import matplotlib.pyplot as plt
-import matplotlib.image as mpimg
 #import timeit
 
 train_dir1 = "data_batch_1.mat"
@@ -294,7 +292,8 @@ with tf.Session() as sess:
         start = step*batch_size % num_instances
         testing_batch = X_test[start:(start+batch_size),:,:,:]
         label_batch = y_test[start:(start+batch_size)]
-        feed_dict = {X: testing_batch}
+        feed_dict = {X: testing_batch,
+                     p: 1}
         prediction = sess.run(y_pred, feed_dict=feed_dict)
         accu = accuracy(prediction, label_batch)
         num_accu.append(accu)
