@@ -126,7 +126,6 @@ num_filters4 = 128
 batch_size = 100
 steps = 60000
 learn_rate = 0.001
-keep_prob = 0.9
 
 X = tf.placeholder(tf.float32, shape=[None,img_size,img_size,num_channels])
 y = tf.placeholder(tf.float32, shape=[None,num_classes])
@@ -310,4 +309,3 @@ with tf.Session() as sess:
     output1_file.close()
     output2_file.close()
     output3_file.close()
-
